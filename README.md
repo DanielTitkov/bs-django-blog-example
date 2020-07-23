@@ -1,0 +1,1 @@
+# bs-django-blog-example
