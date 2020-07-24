@@ -1,2 +1,11 @@
 <h1>This is my blog! Whoa!</h1>
 <p>Lots and lots of greate content here!</p>
+
+{% for post in object_list %}
+    {{ post.title }}
+    <br>
+    <i>{{ post.author }}</i>
+    <br>
+    {{ post.body }}
+
+{% endfor %}
