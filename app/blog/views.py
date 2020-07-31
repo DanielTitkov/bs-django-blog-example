@@ -8,6 +8,7 @@ from .models import Post
 class HomeView(ListView):
     model = Post
     template_name = "home.html"
+    ordering = ["-created", "-id"]
 
 
 class PostDetailView(DetailView):

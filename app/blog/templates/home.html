@@ -4,9 +4,11 @@
     <p>Lots and lots of greate content here!</p>
     <hr>
     {% for post in object_list %}
-    <h3><a href="{% url 'post-details' post.pk %}">{{ post.title }}</a></h3>
-    <i>{{ post.author }}</i>
-    <br>
-    {{ post.body }}
+        <p>
+            <h3><a href="{% url 'post-details' post.pk %}">{{ post.title }}</a></h3>
+            <i>{{ post.author }} | {{ post.created }}</i>
+            <br>
+            {{ post.body }}
+        </p>
     {% endfor %}
 {% endblock %}

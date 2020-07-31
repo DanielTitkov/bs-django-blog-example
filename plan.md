@@ -294,3 +294,71 @@ Add navbar template from bootstrap to the top of <body> tag in blog/templates/ba
         </nav>
         <...>
 ```
+
+Add dynamic block inside title tag in blog/templates/base.html 
+
+```html
+<...>
+    <title>
+        {% block title %}
+            MY BLOG
+        {% endblock %}
+    </title>
+<...>
+```
+
+And to blog/templates/post.html
+
+```html
+{% block title %}
+    {{ post.title }}
+{% endblock %}
+```
+
+Now let's try naive post ordering (change view in blog/views.py). This is temporary solution, but it works
+
+```python
+class HomeView(ListView):
+    model = Post
+    template_name = "home.html"
+    ordering = ["-id"]
+```
+
+Add time fields to blog/models.py
+
+```python
+class Post(models.Model):
+    title = models.CharField(max_length=255)
+    body = models.TextField()
+    author = models.ForeignKey(User, on_delete=models.CASCADE)
+    created = models.DateField(auto_now_add=True)
+    updated = models.DateField(auto_now=True)
+```
+
+Call makemigrations. Select 1 hit enter if prompt about default value
+
+Add post.created field to blog/templates/post.html
+
+```html
+<...>
+<small><i>{{ post.author }} | {{ post.created }}</i></small>
+<...>
+```
+
+and blog/templates/home.html
+
+```html
+<...>
+<i>{{ post.author }} | {{ post.created }}</i>
+<...>
+```
+
+Update sorting criteria in blog/views.py one again
+
+```python
+class HomeView(ListView):
+    model = Post
+    template_name = "home.html"
+    ordering = ["-created", "-id"]
+```
+
