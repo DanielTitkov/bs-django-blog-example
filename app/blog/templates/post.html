@@ -1,7 +1,9 @@
 {% extends 'base.html' %}
+
 {% block title %}
     {{ post.title }}
 {% endblock %}
+
 {% block content %}
     <h1>{{ post.title }}</h1>
     <small><i>{{ post.author }} | {{ post.created }}</i></small>
@@ -9,4 +11,8 @@
     <p>{{ post.body }}</p>
     <br>
     <a class="btn btn-secondary" href="{% url 'home' %}">Go back</a>
+
+    <hr>
+    <h2>Comments <a href="{% url 'create-comment' post.pk %}" class="btn btn-primary btn-sm">Add comment</a></h2>
+    {% include "includes/post-comments.html" %} 
 {% endblock %}

@@ -1,0 +1,13 @@
+{% if post.comments.exists %}
+    {% for comment in post.comments.all %}
+        <div class="card" style="margin-bottom: 10px;">
+            <div class="card-body">
+                <h5><b>{{ comment.name }}</b> says:</h5>
+                <p>{{ comment.body }}</p>
+                <small>{{ comment.updated }}</small>
+            </div>
+        </div>
+    {% endfor %}
+    {% else %}
+    <p>No comments... :)</p>
+{% endif %}

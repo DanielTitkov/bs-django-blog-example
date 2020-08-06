@@ -362,3 +362,119 @@ class HomeView(ListView):
     ordering = ["-created", "-id"]
 ```
 
+## Part 3
+
+Let's create comment models im blog/models.py and migrate it before. 
+
+```python
+class Comment(models.Model):   
+    post = models.ForeignKey(Post, related_name="comments", on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    body = models.TextField()
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"<Comment to '{self.post.title}' by {self.name}>"
+```
+
+Add model admin for comments to blog/admin.py
+
+```python
+class CommentAdmin(admin.ModelAdmin):
+    list_display = (
+        'post',
+        'name',
+        'created',
+        'updated',
+    )
+
+admin.site.register(Comment, CommentAdmin)
+```
+
+Create new file blog/templates/includes/post-comments.html 
+
+```html
+{% if post.comments.exists %}
+    {% for comment in post.comments.all %}
+        <div class="card" style="margin-bottom: 10px;">
+            <div class="card-body">
+                <h5><b>{{ comment.name }}</b> says:</h5>
+                <p>{{ comment.body }}</p>
+                <small>{{ comment.updated }}</small>
+            </div>
+        </div>
+    {% endfor %}
+    {% else %}
+    <p>No comments... :)</p>
+{% endif %}
+```
+
+And add include for in blog/templates/post.html (inside the content block)
+
+```html
+<hr>
+<h2>Comments</h2>
+{% include "includes/post-comments.html" %} 
+```
+
+Add new view to blog/view.py (don't forget imports)
+
+```python
+class CreateCommentView(CreateView):
+    model = Comment
+    template_name = "create-comment.html"
+    fields = "__all__"
+```
+
+Add new url to blog/urls.py
+
+```python
+path('post/<int:pk>/comment', CreateCommentView.as_view(), name="create-comment"),
+```
+
+Add new template blog/templates/create-comment.html
+
+```html
+{% extends 'base.html' %}
+
+{% block title %}
+    Add comment
+{% endblock %}
+
+{% block content %}
+    <div class="form-group">
+        <form method="POST">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn btn-primary">Comment!</button>
+    </div>
+{% endblock %}
+```
+
+Add link to create comment page to blog/templates/post.html (to comment section header)
+
+```html
+<h2>Comments <a href="{% url 'create-comment' post.pk %}" class="btn btn-primary btn-sm">Add comment</a></h2>
+```
+
+Add get_absolute url method for comment model in blog/models.py
+
+```python
+from django.urls import reverse
+
+<...>
+
+class Comment(models.Model):   
+    post = models.ForeignKey(Post, related_name="comments", on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    body = models.TextField()
+    created = models.DateTimeField(auto_now_add=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"<Comment to '{self.post.title}' by {self.name}>"
+
+    def get_absolute_url(self):
+        return reverse("post-details", kwargs={'pk': self.post.pk})
+```

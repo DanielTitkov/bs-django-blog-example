@@ -1,6 +1,6 @@
 from django.shortcuts import render
-from django.views.generic import ListView, DetailView
-from .models import Post
+from django.views.generic import ListView, DetailView, CreateView
+from .models import Post, Comment
 
 # def home(request):
 #     return render(request, "home.html", {})
@@ -14,3 +14,9 @@ class HomeView(ListView):
 class PostDetailView(DetailView):
     model = Post
     template_name = "post.html"
+
+
+class CreateCommentView(CreateView):
+    model = Comment
+    template_name = "create-comment.html"
+    fields = "__all__"
