@@ -478,3 +478,67 @@ class Comment(models.Model):
     def get_absolute_url(self):
         return reverse("post-details", kwargs={'pk': self.post.pk})
 ```
+
+Add form for comment to blog/forms.py
+
+```python
+from django import forms
+from .models import Comment
+
+class CommentForm(forms.ModelForm):
+    class Meta:
+        model = Comment
+        fields = ("name", "body")
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'body': forms.Textarea(attrs={'class': 'form-control', 'rows': 5}),
+        }
+```
+
+And modify CreateCommentView at blog/views.py (don't forget about imports)
+
+```python
+class CreateCommentView(CreateView):
+    model = Comment
+    template_name = "create-comment.html"
+    form_class = CommentForm
+
+    def form_valid(self, form):
+        form.instance.post_id = self.kwargs.get('pk')
+        return super().form_valid(form)
+```
+
+Add update comment template to blog/templates/update-comment.html
+
+```html
+{% extends 'base.html' %}
+
+{% block title %}
+    Edit comment
+{% endblock %}
+
+{% block content %}
+    <div class="form-group">
+        <form method="POST">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn btn-primary">Save</button>
+    </div>
+{% endblock %}
+```
+
+Add update view to blog/views.py (don't forget to import UpdateView)
+
+```python
+class UpdateCommentView(UpdateView):
+    model = Comment
+    template_name = "update-comment.html"
+    fields = ('name', 'body')
+    pk_url_kwarg = 'comment_pk'
+```
+
+Also add url for new view in blog/urls.py
+
+```python
+path('post/<int:pk>/comment/<int:comment_pk>', UpdateCommentView.as_view(), name="update-comment"),
+```
