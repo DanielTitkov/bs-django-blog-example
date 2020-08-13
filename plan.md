@@ -1,4 +1,4 @@
-## Part 1
+# Part 1 - Basic app
 
 Create new django project
 
@@ -152,7 +152,7 @@ Update blog/templates/home.html
 {% endfor %}
 ```
 
-## Part 2
+# Part 2 - Views and templates
 
 Now we need to create a page (template) for single post. Create blog/templates/post.html
 
@@ -362,7 +362,7 @@ class HomeView(ListView):
     ordering = ["-created", "-id"]
 ```
 
-## Part 3
+# Part 3 - Forms
 
 Let's create comment models im blog/models.py and migrate it before. 
 
@@ -541,4 +541,133 @@ Also add url for new view in blog/urls.py
 
 ```python
 path('post/<int:pk>/comment/<int:comment_pk>', UpdateCommentView.as_view(), name="update-comment"),
+```
+
+# Part 4 - Authentication
+
+Create new django app with `python manage.py startapp accounts` (where accounts is voluntary app name)
+
+Add new app's name to app/settings.py
+
+```python
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+
+    'blog',
+    'accounts',
+]
+```
+
+Add urls to app/urls.py (order is important!)
+
+```python
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('blog.urls')),
+    path('account/', include('django.contrib.auth.urls')),
+    path('account/', include('accounts.urls')),
+]
+```
+
+Now to the accounts app. Create accounts/templates/registration/login.html 
+
+```html
+{% extends 'base.html' %}
+
+{% block title %}
+    Log in
+{% endblock %}
+
+{% block content %}
+    <h1>Login to Blog</h1>
+    <div class="form-group">
+        <form method="POST">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn btn-primary">Log in</button>
+    </div>
+{% endblock %}
+```
+
+And accounts/templates/registration/register.html 
+
+```html
+{% extends 'base.html' %}
+
+{% block title %}
+    Register
+{% endblock %}
+
+{% block content %}
+    <h1>Register in Blog</h1>
+    <div class="form-group">
+        <form method="POST">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn btn-primary">Sign up</button>
+    </div>
+{% endblock %}
+```
+
+Create new view in accounts/views.py
+
+```python
+from django.shortcuts import render
+from django.views.generic import CreateView
+from django.contrib.auth.forms import UserCreationForm
+from django.urls import reverse_lazy
+
+
+class UserRegisterView(CreateView):
+    form_class = UserCreationForm
+    template_name = "register/register.html"
+    success_url = reverse_lazy('login')
+```
+
+And create accounts/urls.py
+
+```python
+from django.urls import path
+from .views import UserRegisterView
+
+urlpatterns = [
+    path('register', UserRegisterView.as_view(), name="register"),
+]
+```
+
+And add links to blog/templates/base.html 
+
+```html
+<...>
+<div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav mr-auto">
+        <li class="nav-item">
+            <a class="nav-link" href="{% url 'register' %}">Register</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="{% url 'login' %}">Login</a>
+        </li>
+    </ul>
+</div>
+<...>
+```
+
+Add redirect urls to app/settings.py
+
+```python
+LOGIN_REDIRECT_URL = 'home'
+
+LOGOUT_REDIRECT_URL = 'home'
 ```
