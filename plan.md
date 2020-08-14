@@ -653,12 +653,18 @@ And add links to blog/templates/base.html
 <...>
 <div class="collapse navbar-collapse" id="navbarSupportedContent">
     <ul class="navbar-nav mr-auto">
-        <li class="nav-item">
-            <a class="nav-link" href="{% url 'register' %}">Register</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="{% url 'login' %}">Login</a>
-        </li>
+        {% if user.is_authenticated %}
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'logout' %}">Logout</a>
+            </li>
+        {% else %}
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'register' %}">Register</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'login' %}">Login</a>
+            </li>
+        {% endif %}
     </ul>
 </div>
 <...>
@@ -670,4 +676,92 @@ Add redirect urls to app/settings.py
 LOGIN_REDIRECT_URL = 'home'
 
 LOGOUT_REDIRECT_URL = 'home'
+```
+
+Modify blog/templates/post.html
+
+```html
+<hr>
+{% if user.is_authenticated %}
+    <h2>Comments <a href="{% url 'create-comment' post.pk %}" class="btn btn-primary btn-sm">Add comment</a></h2>
+{% else %}
+    <h2>Login to add comments</h2>
+{% endif %}
+{% include "includes/post-comments.html" %} 
+```
+
+Add login required mixin to your views (parents order is important) at blog/views.py 
+
+```python
+<...>
+from django.contrib.auth.mixins import LoginRequiredMixin
+
+<...>
+
+class CreateCommentView(LoginRequiredMixin, CreateView):
+    model = Comment
+    template_name = "create-comment.html"
+    form_class = CommentForm
+
+    def form_valid(self, form):
+        form.instance.post_id = self.kwargs.get('pk')
+        return super().form_valid(form)
+
+
+class UpdateCommentView(LoginRequiredMixin, UpdateView):
+    model = Comment
+    template_name = "update-comment.html"
+    fields = ('name', 'body')
+    pk_url_kwarg = 'comment_pk' 
+```
+
+Update blog/templates/includes/post-comments.html 
+
+```html
+<div class="card-body">
+    <h5><b>{{ comment.name }}</b> says:</h5>
+    <p>{{ comment.body }}</p>
+    <p><small>{{ comment.updated }}</small></p>
+    {% if user.is_authenticated %}
+        <a class="card-link" href="{% url 'update-comment' post.pk comment.pk %}">
+            Edit comment
+        </a>
+    {% endif %}
+</div>
+```
+
+Add author to comment model at blog/models.py and apply migrations
+
+```python
+author = models.ForeignKey(User, on_delete=models.CASCADE)
+```
+
+Change `name` to `author.username` at blog/templates/includes/post-comments.html
+
+```html
+<h5><b>{{ comment.author.username }}</b> says:</h5>
+```
+
+And update comment edit link at blog/templates/includes/post-comments.html
+
+```html
+{% if user.is_authenticated and comment.author == request.user %}
+    <a class="card-link" href="{% url 'update-comment' post.pk comment.pk %}">
+        Edit comment
+    </a>
+{% endif %}
+```
+
+And user update to CreateCommentView at blog/view.py
+
+```python
+class CreateCommentView(LoginRequiredMixin, CreateView):
+    model = Comment
+    template_name = "create-comment.html"
+    form_class = CommentForm
+
+    def form_valid(self, form):
+        form.instance.post_id = self.kwargs.get('pk')
+        form.instance.author = self.request.user
+        return super().form_valid(form)
 ```
