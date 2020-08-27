@@ -768,11 +768,14 @@ class CreateCommentView(LoginRequiredMixin, CreateView):
 
 # Part 5 - Deployment
 
+CREATE NEW BRANCH FOR THIS!
+
 Change values in app/settings.py
 
 ```python
 SECRET_KEY = os.getenv("SECRET_KEY") or "youneverguess"
 
+DEBUG = os.getenv('DEBUG') == 'TRUE'
 <...>
 
 DATABASES = {
@@ -822,3 +825,28 @@ grant all privileges on database blog to blog;
 \q
 ```
 
+Now it is supposed that you have some machine where the project will be deployed. In the example it has the following IP: *165.22.92.72*. On Linux you can just ssh to it, on Windows you may need Putty. 
+
+On your server:
+
+```bash
+sudo apt update
+sudo apt install python3-pip python3-dev libpq-dev postgresql postgresql-contrib nginx
+pip3 install pipenv
+```
+
+Login to postgres and create a database again:
+
+```bash
+sudo -u postgres psql
+
+create database blog;
+
+create user blog with encrypted password '123456';
+
+grant all privileges on database blog to blog;
+
+\q
+```
+
+Let's install gunicorn (locally). Install it with `pipenv install gunicorn`. You won't be able to run in on windows though. For Linux the command is the following `gunicorn --bind 0.0.0.0:8000 app.wsgi`
