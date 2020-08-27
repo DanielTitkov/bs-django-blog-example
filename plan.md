@@ -828,7 +828,7 @@ grant all privileges on database blog to blog;
 
 Now it is supposed that you have some machine where the project will be deployed. In the example it has the following IP: *165.22.92.72*. On Linux you can just ssh to it, on Windows you may need Putty. 
 
-Update app/setting.py 
+Update app/settings.py 
 
 ```python
 ALLOWED_HOSTS = ["localhost", "127.0.0.1", "165.22.92.72"]
@@ -929,3 +929,9 @@ server {
 And link it `sudo ln -s /etc/nginx/sites-available/blog /etc/nginx/sites-enabled`. You can test Nginx configurations with `sudo nginx -t`.
 If all is ok, restart nginx `sudo systemctl restart nginx`.
 Update firewall rules `sudo ufw allow 'Nginx Full'`
+
+Troubleshooting:
+
+Nginx logs: `sudo tail -F /var/log/nginx/error.log`
+Check path: `namei -l /root/bs-django-blog-example/blog.sock`
+Change rights to /root `chmod 755 /root`
