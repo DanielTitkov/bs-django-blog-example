@@ -765,3 +765,60 @@ class CreateCommentView(LoginRequiredMixin, CreateView):
         form.instance.author = self.request.user
         return super().form_valid(form)
 ```
+
+# Part 5 - Deployment
+
+Change values in app/settings.py
+
+```python
+SECRET_KEY = os.getenv("SECRET_KEY") or "youneverguess"
+
+<...>
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'HOST': '127.0.0.1',
+        'PORT': os.getenv("DB_PORT") or "5432",
+        'USER': os.getenv("DB_USER") or "blog",
+        'NAME': os.getenv("DB_NAME") or "blog",
+        'PASSWORD' : os.getenv("DB_PASSWORD") or "123",
+    }
+}
+```
+
+And create .env file in the project root (app/). Use secure key and password, this is just an example. Add it to .gitignore.
+
+```
+SECRET_KEY=dfrth34f2ryh43fwedfbfdfaf
+DB_PORT=5432
+DB_USER=blog
+DB_NAME=blog
+DB_PASSWORD=123456
+```
+
+Install python-dotenv with `pipenv install python-dotenv`.
+Also install psycopg2 with `pipenv install psycopg2`.
+Modify app/settings.py to read oyur .env file.
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+```
+
+Now we need to connect to postgres and create a database. 
+
+```bash
+psql -U postgres
+
+create database blog;
+
+create user blog with encrypted password '123456';
+
+grant all privileges on database blog to blog;
+
+\q
+```
+
