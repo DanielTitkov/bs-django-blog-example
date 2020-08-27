@@ -1,4 +1,4 @@
-## Part 1
+# Part 1 - Basic app
 
 Create new django project
 
@@ -152,7 +152,7 @@ Update blog/templates/home.html
 {% endfor %}
 ```
 
-## Part 2
+# Part 2 - Views and templates
 
 Now we need to create a page (template) for single post. Create blog/templates/post.html
 
@@ -362,7 +362,7 @@ class HomeView(ListView):
     ordering = ["-created", "-id"]
 ```
 
-## Part 3
+# Part 3 - Forms
 
 Let's create comment models im blog/models.py and migrate it before. 
 
@@ -542,3 +542,396 @@ Also add url for new view in blog/urls.py
 ```python
 path('post/<int:pk>/comment/<int:comment_pk>', UpdateCommentView.as_view(), name="update-comment"),
 ```
+
+# Part 4 - Authentication
+
+Create new django app with `python manage.py startapp accounts` (where accounts is voluntary app name)
+
+Add new app's name to app/settings.py
+
+```python
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+
+    'blog',
+    'accounts',
+]
+```
+
+Add urls to app/urls.py (order is important!)
+
+```python
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+from django.contrib import admin
+from django.urls import path, include
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+    path('', include('blog.urls')),
+    path('account/', include('django.contrib.auth.urls')),
+    path('account/', include('accounts.urls')),
+]
+```
+
+Now to the accounts app. Create accounts/templates/registration/login.html 
+
+```html
+{% extends 'base.html' %}
+
+{% block title %}
+    Log in
+{% endblock %}
+
+{% block content %}
+    <h1>Login to Blog</h1>
+    <div class="form-group">
+        <form method="POST">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn btn-primary">Log in</button>
+    </div>
+{% endblock %}
+```
+
+And accounts/templates/registration/register.html 
+
+```html
+{% extends 'base.html' %}
+
+{% block title %}
+    Register
+{% endblock %}
+
+{% block content %}
+    <h1>Register in Blog</h1>
+    <div class="form-group">
+        <form method="POST">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button class="btn btn-primary">Sign up</button>
+    </div>
+{% endblock %}
+```
+
+Create new view in accounts/views.py
+
+```python
+from django.shortcuts import render
+from django.views.generic import CreateView
+from django.contrib.auth.forms import UserCreationForm
+from django.urls import reverse_lazy
+
+
+class UserRegisterView(CreateView):
+    form_class = UserCreationForm
+    template_name = "register/register.html"
+    success_url = reverse_lazy('login')
+```
+
+And create accounts/urls.py
+
+```python
+from django.urls import path
+from .views import UserRegisterView
+
+urlpatterns = [
+    path('register', UserRegisterView.as_view(), name="register"),
+]
+```
+
+And add links to blog/templates/base.html 
+
+```html
+<...>
+<div class="collapse navbar-collapse" id="navbarSupportedContent">
+    <ul class="navbar-nav mr-auto">
+        {% if user.is_authenticated %}
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'logout' %}">Logout</a>
+            </li>
+        {% else %}
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'register' %}">Register</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'login' %}">Login</a>
+            </li>
+        {% endif %}
+    </ul>
+</div>
+<...>
+```
+
+Add redirect urls to app/settings.py
+
+```python
+LOGIN_REDIRECT_URL = 'home'
+
+LOGOUT_REDIRECT_URL = 'home'
+```
+
+Modify blog/templates/post.html
+
+```html
+<hr>
+{% if user.is_authenticated %}
+    <h2>Comments <a href="{% url 'create-comment' post.pk %}" class="btn btn-primary btn-sm">Add comment</a></h2>
+{% else %}
+    <h2>Login to add comments</h2>
+{% endif %}
+{% include "includes/post-comments.html" %} 
+```
+
+Add login required mixin to your views (parents order is important) at blog/views.py 
+
+```python
+<...>
+from django.contrib.auth.mixins import LoginRequiredMixin
+
+<...>
+
+class CreateCommentView(LoginRequiredMixin, CreateView):
+    model = Comment
+    template_name = "create-comment.html"
+    form_class = CommentForm
+
+    def form_valid(self, form):
+        form.instance.post_id = self.kwargs.get('pk')
+        return super().form_valid(form)
+
+
+class UpdateCommentView(LoginRequiredMixin, UpdateView):
+    model = Comment
+    template_name = "update-comment.html"
+    fields = ('name', 'body')
+    pk_url_kwarg = 'comment_pk' 
+```
+
+Update blog/templates/includes/post-comments.html 
+
+```html
+<div class="card-body">
+    <h5><b>{{ comment.name }}</b> says:</h5>
+    <p>{{ comment.body }}</p>
+    <p><small>{{ comment.updated }}</small></p>
+    {% if user.is_authenticated %}
+        <a class="card-link" href="{% url 'update-comment' post.pk comment.pk %}">
+            Edit comment
+        </a>
+    {% endif %}
+</div>
+```
+
+Add author to comment model at blog/models.py and apply migrations
+
+```python
+author = models.ForeignKey(User, on_delete=models.CASCADE)
+```
+
+Change `name` to `author.username` at blog/templates/includes/post-comments.html
+
+```html
+<h5><b>{{ comment.author.username }}</b> says:</h5>
+```
+
+And update comment edit link at blog/templates/includes/post-comments.html
+
+```html
+{% if user.is_authenticated and comment.author == request.user %}
+    <a class="card-link" href="{% url 'update-comment' post.pk comment.pk %}">
+        Edit comment
+    </a>
+{% endif %}
+```
+
+And user update to CreateCommentView at blog/view.py
+
+```python
+class CreateCommentView(LoginRequiredMixin, CreateView):
+    model = Comment
+    template_name = "create-comment.html"
+    form_class = CommentForm
+
+    def form_valid(self, form):
+        form.instance.post_id = self.kwargs.get('pk')
+        form.instance.author = self.request.user
+        return super().form_valid(form)
+```
+
+# Part 5 - Deployment
+
+CREATE NEW BRANCH FOR THIS!
+
+Change values in app/settings.py
+
+```python
+SECRET_KEY = os.getenv("SECRET_KEY") or "youneverguess"
+
+DEBUG = os.getenv('DEBUG') == 'TRUE'
+
+<...>
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'HOST': '127.0.0.1',
+        'PORT': os.getenv("DB_PORT") or "5432",
+        'USER': os.getenv("DB_USER") or "blog",
+        'NAME': os.getenv("DB_NAME") or "blog",
+        'PASSWORD' : os.getenv("DB_PASSWORD") or "123",
+    }
+}
+```
+
+And create .env file in the project root (app/). Use secure key and password, this is just an example. Add it to .gitignore.
+
+```
+SECRET_KEY=dfrth34f2ryh43fwedfbfdfaf
+DB_PORT=5432
+DB_USER=blog
+DB_NAME=blog
+DB_PASSWORD=123456
+```
+
+Install python-dotenv with `pipenv install python-dotenv`.
+Also install psycopg2 with `pipenv install psycopg2`.
+Modify app/settings.py to read oyur .env file.
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+```
+
+Now we need to connect to postgres and create a database. 
+
+```bash
+psql -U postgres
+
+create database blog;
+
+create user blog with encrypted password '123456';
+
+grant all privileges on database blog to blog;
+
+\q
+```
+
+Now it is supposed that you have some machine where the project will be deployed. In the example it has the following IP: *165.22.92.72*. On Linux you can just ssh to it, on Windows you may need Putty. 
+
+Update app/settings.py 
+
+```python
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "165.22.92.72"]
+```
+
+On your server:
+
+```bash
+sudo apt update
+sudo apt install python3-pip python3-dev libpq-dev postgresql postgresql-contrib nginx
+pip3 install pipenv
+```
+
+Login to postgres and create a database again:
+
+```bash
+sudo -u postgres psql
+
+create database blog;
+
+create user blog with encrypted password '123456';
+
+grant all privileges on database blog to blog;
+
+\q
+```
+
+Install gunicorn locally with `pipenv install gunicorn, commit and push`
+
+On server: clone project repo `git clone https://github.com/DanielTitkov/bs-django-blog-example.git`
+Go to the directory, create virtual env and install all the libs. 
+
+```bash
+cd bs-django-blog-example
+pipenv --python=3
+pipenv sync
+```
+
+Create .env with relevant values on your server. 
+Make migrations and migrate. 
+Run app with the command: `gunicorn --bind 0.0.0.0:8000 app.wsgi`.
+You may need to update firewall rules with `sudo ufw allow 8000`.
+
+Let's create systemd file for gunicorn.
+
+`sudo nano /etc/systemd/system/gunicorn.service`
+
+and there:
+
+```
+[Unit]
+Description=gunicorn daemon
+After=network.target
+
+[Service]
+User=root
+Group=www-data
+WorkingDirectory=/root/bs-django-blog-example/app
+ExecStart=pipenv run gunicorn --access-logfile - --workers 3 --bind unix:/root/bs-django-blog-example/blog.sock app.wsgi
+
+[Install]
+WantedBy=multi-user.target 
+```
+
+and run it 
+
+```bash
+sudo systemctl start gunicorn
+sudo systemctl enable gunicorn
+```
+
+Check if socket is in place. 
+You can check gunicorn logs with `sudo journalctl -u gunicorn` or `sudo systemctl status gunicorn`
+We can even try to connect to this socket now `curl --unix-socket blog.sock localhost`
+
+Now we need to configure NGINX. Add new server block to Nginx’s sites-available directory
+
+`sudo nano /etc/nginx/sites-available/blog`
+
+```
+server {
+    listen 80;
+    server_name 165.22.92.72;
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+
+    location /static/ {
+        root /root/bs-django-blog-example/app;
+    }
+
+    location / {
+        include proxy_params;
+        proxy_pass http://unix:/root/bs-django-blog-example/blog.sock;
+    }
+}
+```
+
+And link it `sudo ln -s /etc/nginx/sites-available/blog /etc/nginx/sites-enabled`. You can test Nginx configurations with `sudo nginx -t`.
+If all is ok, restart nginx `sudo systemctl restart nginx`.
+Update firewall rules `sudo ufw allow 'Nginx Full'`
+
+Troubleshooting:
+
+Nginx logs: `sudo tail -F /var/log/nginx/error.log`
+Check path: `namei -l /root/bs-django-blog-example/blog.sock`
+Change rights to /root `chmod 755 /root`

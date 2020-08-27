@@ -13,6 +13,11 @@
     <a class="btn btn-secondary" href="{% url 'home' %}">Go back</a>
 
     <hr>
-    <h2>Comments <a href="{% url 'create-comment' post.pk %}" class="btn btn-primary btn-sm">Add comment</a></h2>
+    {% if user.is_authenticated %}
+        <h2>Comments <a href="{% url 'create-comment' post.pk %}" class="btn btn-primary btn-sm">Add comment</a></h2>
+    {% else %}
+        <h2>Login to add comments</h2>
+    {% endif %}
     {% include "includes/post-comments.html" %} 
+    
 {% endblock %}

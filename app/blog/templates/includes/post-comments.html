@@ -2,12 +2,14 @@
     {% for comment in post.comments.all %}
         <div class="card" style="margin-bottom: 10px;">
             <div class="card-body">
-                <h5><b>{{ comment.name }}</b> says:</h5>
+                <h5><b>{{ comment.author.username }}</b> says:</h5>
                 <p>{{ comment.body }}</p>
                 <p><small>{{ comment.updated }}</small></p>
-                <a class="card-link" href="{% url 'update-comment' post.pk comment.pk %}">
-                    Edit comment
-                </a>
+                {% if user.is_authenticated and comment.author == request.user %}
+                    <a class="card-link" href="{% url 'update-comment' post.pk comment.pk %}">
+                        Edit comment
+                    </a>
+                {% endif %}
             </div>
         </div>
     {% endfor %}

@@ -5,6 +5,7 @@ from .models import Post, Comment
 class CommentAdmin(admin.ModelAdmin):
     list_display = (
         'post',
+        'author',
         'name',
         'created',
         'updated',
