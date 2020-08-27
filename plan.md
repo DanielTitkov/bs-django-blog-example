@@ -776,6 +776,7 @@ Change values in app/settings.py
 SECRET_KEY = os.getenv("SECRET_KEY") or "youneverguess"
 
 DEBUG = os.getenv('DEBUG') == 'TRUE'
+
 <...>
 
 DATABASES = {
@@ -827,6 +828,12 @@ grant all privileges on database blog to blog;
 
 Now it is supposed that you have some machine where the project will be deployed. In the example it has the following IP: *165.22.92.72*. On Linux you can just ssh to it, on Windows you may need Putty. 
 
+Update app/setting.py 
+
+```python
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "165.22.92.72"]
+```
+
 On your server:
 
 ```bash
@@ -849,4 +856,76 @@ grant all privileges on database blog to blog;
 \q
 ```
 
-Let's install gunicorn (locally). Install it with `pipenv install gunicorn`. You won't be able to run in on windows though. For Linux the command is the following `gunicorn --bind 0.0.0.0:8000 app.wsgi`
+Install gunicorn locally with `pipenv install gunicorn, commit and push`
+
+On server: clone project repo `git clone https://github.com/DanielTitkov/bs-django-blog-example.git`
+Go to the directory, create virtual env and install all the libs. 
+
+```bash
+cd bs-django-blog-example
+pipenv --python=3
+pipenv sync
+```
+
+Create .env with relevant values on your server. 
+Make migrations and migrate. 
+Run app with the command: `gunicorn --bind 0.0.0.0:8000 app.wsgi`.
+You may need to update firewall rules with `sudo ufw allow 8000`.
+
+Let's create systemd file for gunicorn.
+
+`sudo nano /etc/systemd/system/gunicorn.service`
+
+and there:
+
+```
+[Unit]
+Description=gunicorn daemon
+After=network.target
+
+[Service]
+User=root
+Group=www-data
+WorkingDirectory=/root/bs-django-blog-example/app
+ExecStart=pipenv run gunicorn --access-logfile - --workers 3 --bind unix:/root/bs-django-blog-example/blog.sock app.wsgi
+
+[Install]
+WantedBy=multi-user.target 
+```
+
+and run it 
+
+```bash
+sudo systemctl start gunicorn
+sudo systemctl enable gunicorn
+```
+
+Check if socket is in place. 
+You can check gunicorn logs with `sudo journalctl -u gunicorn` or `sudo systemctl status gunicorn`
+We can even try to connect to this socket now `curl --unix-socket blog.sock localhost`
+
+Now we need to configure NGINX. Add new server block to Nginx’s sites-available directory
+
+`sudo nano /etc/nginx/sites-available/blog`
+
+```
+server {
+    listen 80;
+    server_name 165.22.92.72;
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+
+    location /static/ {
+        root /root/bs-django-blog-example/app;
+    }
+
+    location / {
+        include proxy_params;
+        proxy_pass http://unix:/root/bs-django-blog-example/blog.sock;
+    }
+}
+```
+
+And link it `sudo ln -s /etc/nginx/sites-available/blog /etc/nginx/sites-enabled`. You can test Nginx configurations with `sudo nginx -t`.
+If all is ok, restart nginx `sudo systemctl restart nginx`.
+Update firewall rules `sudo ufw allow 'Nginx Full'`
