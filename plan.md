@@ -765,3 +765,226 @@ class CreateCommentView(LoginRequiredMixin, CreateView):
         form.instance.author = self.request.user
         return super().form_valid(form)
 ```
+
+# Part 5 - Deployment
+
+CREATE NEW BRANCH FOR THIS!
+
+Change values in app/settings.py
+
+```python
+SECRET_KEY = os.getenv("SECRET_KEY") or "youneverguess"
+
+DEBUG = os.getenv('DEBUG') == 'TRUE'
+
+<...>
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'HOST': '127.0.0.1',
+        'PORT': os.getenv("DB_PORT") or "5432",
+        'USER': os.getenv("DB_USER") or "blog",
+        'NAME': os.getenv("DB_NAME") or "blog",
+        'PASSWORD' : os.getenv("DB_PASSWORD") or "123",
+    }
+}
+```
+
+And create .env file in the project root (app/). Use secure key and password, this is just an example. Add it to .gitignore.
+
+```
+SECRET_KEY=dfrth34f2ryh43fwedfbfdfaf
+DB_PORT=5432
+DB_USER=blog
+DB_NAME=blog
+DB_PASSWORD=123456
+```
+
+Install python-dotenv with `pipenv install python-dotenv`.
+Also install psycopg2 with `pipenv install psycopg2`.
+Modify app/settings.py to read oyur .env file.
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+```
+
+Now we need to connect to postgres and create a database. 
+
+```bash
+psql -U postgres
+
+create database blog;
+
+create user blog with encrypted password '123456';
+
+grant all privileges on database blog to blog;
+
+\q
+```
+
+Now it is supposed that you have some machine where the project will be deployed. In the example it has the following IP: *165.22.92.72*. On Linux you can just ssh to it, on Windows you may need Putty. 
+
+Update app/settings.py 
+
+```python
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "165.22.92.72"]
+```
+
+On your server:
+
+```bash
+sudo apt update
+sudo apt install python3-pip python3-dev libpq-dev postgresql postgresql-contrib nginx
+pip3 install pipenv
+```
+
+Login to postgres and create a database again:
+
+```bash
+sudo -u postgres psql
+
+create database blog;
+
+create user blog with encrypted password '123456';
+
+grant all privileges on database blog to blog;
+
+\q
+```
+
+Install gunicorn locally with `pipenv install gunicorn, commit and push`
+
+On server: clone project repo `git clone https://github.com/DanielTitkov/bs-django-blog-example.git`
+Go to the directory, create virtual env and install all the libs. 
+
+```bash
+cd bs-django-blog-example
+pipenv --python=3
+pipenv sync
+```
+
+Create .env with relevant values on your server. 
+Make migrations and migrate. 
+Run app with the command: `gunicorn --bind 0.0.0.0:8000 app.wsgi`.
+You may need to update firewall rules with `sudo ufw allow 8000`.
+
+Let's create systemd file for gunicorn.
+
+`sudo nano /etc/systemd/system/gunicorn.service`
+
+and there:
+
+```
+[Unit]
+Description=gunicorn daemon
+After=network.target
+
+[Service]
+User=root
+Group=www-data
+WorkingDirectory=/root/bs-django-blog-example/app
+ExecStart=pipenv run gunicorn --access-logfile - --workers 3 --bind unix:/root/bs-django-blog-example/blog.sock app.wsgi
+
+[Install]
+WantedBy=multi-user.target 
+```
+
+and run it 
+
+```bash
+sudo systemctl start gunicorn
+sudo systemctl enable gunicorn
+```
+
+Check if socket is in place. 
+You can check gunicorn logs with `sudo journalctl -u gunicorn` or `sudo systemctl status gunicorn`
+We can even try to connect to this socket now `curl --unix-socket blog.sock localhost`
+
+Now we need to configure NGINX. Add new server block to Nginx’s sites-available directory
+
+`sudo nano /etc/nginx/sites-available/blog`
+
+```
+server {
+    listen 80;
+    server_name 165.22.92.72;
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+
+    location /static/ {
+        root /root/bs-django-blog-example/app;
+    }
+
+    location / {
+        include proxy_params;
+        proxy_pass http://unix:/root/bs-django-blog-example/blog.sock;
+    }
+}
+```
+
+And link it `sudo ln -s /etc/nginx/sites-available/blog /etc/nginx/sites-enabled`. You can test Nginx configurations with `sudo nginx -t`.
+If all is ok, restart nginx `sudo systemctl restart nginx`.
+Update firewall rules `sudo ufw allow 'Nginx Full'`
+
+Troubleshooting:
+
+Nginx logs: `sudo tail -F /var/log/nginx/error.log`
+Check path: `namei -l /root/bs-django-blog-example/blog.sock`
+Change rights to /root `chmod 755 /root`
+
+# Part 6 - Django business logic
+
+For the sake of simlicity we will start with part 4 code here, not part 5. 
+
+Add new field to Post model in blog/models.py and perform migrations.
+
+```python
+trigrams = models.TextField(blank=True)
+```
+
+Update blog/urls.py
+
+```python
+from django.urls import path
+from .views import HomeView, PostDetailView, CreateCommentView, UpdateCommentView, analyze_post
+
+urlpatterns = [
+    path('', HomeView.as_view(), name="home"),
+    path('post/<int:pk>', PostDetailView.as_view(), name="post-details"),
+    path('post/<int:pk>/comment', CreateCommentView.as_view(), name="create-comment"),
+    path('post/<int:pk>/comment/<int:comment_pk>', UpdateCommentView.as_view(), name="update-comment"),
+    path('post/analyze', analyze_post, name="analyze-post"),
+]
+```
+
+And start new view in blog/views.py
+
+```python
+from django.shortcuts import render
+from django.views.generic import ListView, DetailView, CreateView, UpdateView
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.decorators.csrf import csrf_exempt 
+from django.http import JsonResponse
+from .models import Post, Comment
+from .forms import CommentForm
+
+import json
+
+
+@csrf_exempt
+def analyze_post(request):
+    
+    post_id = json.loads(request.body).get("postId")
+    if not post_id:
+        return JsonResponse({"success": False, "message": "provide postId"})
+
+    post = Post.objects.filter(pk=post_id).first()
+
+    print(post)
+
+    return JsonResponse({"success": True})
+```

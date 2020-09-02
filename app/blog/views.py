@@ -1,8 +1,12 @@
 from django.shortcuts import render
 from django.views.generic import ListView, DetailView, CreateView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.views.decorators.csrf import csrf_exempt 
+from django.http import JsonResponse
 from .models import Post, Comment
 from .forms import CommentForm
+
+import json
 
 
 class HomeView(ListView):
@@ -33,3 +37,17 @@ class UpdateCommentView(LoginRequiredMixin, UpdateView):
     template_name = "update-comment.html"
     fields = ('name', 'body')
     pk_url_kwarg = 'comment_pk' 
+
+
+@csrf_exempt
+def analyze_post(request):
+    
+    post_id = json.loads(request.body).get("postId")
+    if not post_id:
+        return JsonResponse({"success": False, "message": "provide postId"})
+
+    post = Post.objects.filter(pk=post_id).first()
+
+    print(post)
+
+    return JsonResponse({"success": True})
