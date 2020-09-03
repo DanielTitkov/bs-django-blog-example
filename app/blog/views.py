@@ -1,6 +1,5 @@
 import json
 import re
-import numpy as np
 from unidecode import unidecode
 from sklearn.feature_extraction.text import CountVectorizer
 
