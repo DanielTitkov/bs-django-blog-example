@@ -961,7 +961,7 @@ urlpatterns = [
 ]
 ```
 
-And start new view in blog/views.py
+And start new view in blog/views.py. Also install **sklearn** and **unidecode**, you gonna need them. 
 
 ```python
 from django.shortcuts import render
@@ -982,7 +982,9 @@ def analyze_post(request):
     if not post_id:
         return JsonResponse({"success": False, "message": "provide postId"})
 
-    post = Post.objects.filter(pk=post_id).first()
+    post = Post.objects.get(pk=post_id)
+    if not post:
+        return JsonResponse({"success": False, "message": "post not found"})
 
     print(post)
 

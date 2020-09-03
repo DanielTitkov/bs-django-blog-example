@@ -1,12 +1,18 @@
+import json
+import re
+import numpy as np
+from unidecode import unidecode
+from sklearn.feature_extraction.text import CountVectorizer
+
 from django.shortcuts import render
 from django.views.generic import ListView, DetailView, CreateView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.views.decorators.csrf import csrf_exempt 
 from django.http import JsonResponse
+
 from .models import Post, Comment
 from .forms import CommentForm
 
-import json
 
 
 class HomeView(ListView):
@@ -47,7 +53,22 @@ def analyze_post(request):
         return JsonResponse({"success": False, "message": "provide postId"})
 
     post = Post.objects.filter(pk=post_id).first()
+    if not post:
+        return JsonResponse({"success": False, "message": "post not found"})
 
-    print(post)
+    text = post.body
+    cleaned_text = unidecode(re.sub('[\W\d\s]', '', text.lower()))
+    
+    vectorizer = CountVectorizer(
+        ngram_range=(3,3),
+        lowercase=True,
+        analyzer = 'char',
+    )
 
-    return JsonResponse({"success": True})
+    data = vectorizer.fit_transform([cleaned_text])
+    trigrams = vectorizer.get_feature_names()[0:6]
+
+    post.trigrams = " ".join(trigrams)
+    post.save()
+
+    return JsonResponse({"success": True, "trigrams": trigrams})
