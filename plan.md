@@ -1008,3 +1008,209 @@ def analyze_post(request):
 
     return JsonResponse({"success": True, "trigrams": trigrams})
 ```
+
+Now we can tests this endpoint with Postman. 
+Now you may want to reproduce the same logic for comments - just to see that it's not effective. 
+
+Create file blog/services.py
+
+```python
+from typing import Optional
+
+import re
+from unidecode import unidecode
+from sklearn.feature_extraction.text import CountVectorizer
+
+from .models import Post, Comment
+
+
+def update_post_trigrams(post_id: int) -> Optional[Post]:
+    post = Post.objects.filter(pk=post_id).first()
+    if not post:
+        return None
+
+    post.trigrams = " ".join(_get_trigrams(post.body))
+    post.save()
+    return post
+
+
+def update_comment_trigrams(comment_id: int) -> Optional[Comment]:
+    comment = Post.objects.filter(pk=comment_id).first()
+    if not comment:
+        return None
+
+    comment.trigrams = " ".join(_get_trigrams(comment.body))
+    comment.save()
+    return comment
+
+
+def _cleanse_text(text):
+    return unidecode(re.sub('[\W\d\s]', '', text.lower()))
+    
+
+def _get_trigrams(text):
+    cleaned_text = _cleanse_text(text)
+
+    vectorizer = CountVectorizer(
+        ngram_range=(3,3),
+        lowercase=True,
+        analyzer = 'char',
+    )
+
+    vectorizer.fit_transform([cleaned_text])
+    return vectorizer.get_feature_names()[0:6]
+```
+
+And update views in blog/views.py
+
+```python
+@csrf_exempt
+def analyze_post(request):   
+    post_id = json.loads(request.body).get("postId")
+    if not post_id:
+        return JsonResponse({"success": False, "message": "provide postId"})
+
+    post = services.update_post_trigrams(post_id)
+    if not post:
+        return JsonResponse({"success": False, "message": "post not found"})
+    return JsonResponse({"success": True, "trigrams": post.trigrams})
+
+
+@csrf_exempt
+def analyze_comment(request):
+    comment_id = json.loads(request.body).get("commentId")
+    if not comment_id:
+        return JsonResponse({"success": False, "message": "provide commentId"})
+
+    comment = services.update_comment_trigrams(comment_id)
+    if not comment:
+        return JsonResponse({"success": False, "message": "comment not found"})
+    return JsonResponse({"success": True, "trigrams": comment.trigrams})
+```
+
+Now let's add middleware to app/middleware.py
+
+```python
+class TestMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        print("Enter TestMiddleware")
+        response = self.get_response(request)
+        print("Exit TestMiddleware")
+        return response
+
+class TestMiddleware2:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        print("Enter TestMiddleware2")
+        response = self.get_response(request)
+        print("Exit TestMiddleware2")
+        return response
+```
+
+And modify app/settings.py
+
+```python
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+
+    'app.middleware.TestMiddleware',
+    'app.middleware.TestMiddleware2',
+]
+```
+
+Modify app/middleware.py to add mock authentication
+
+```python
+import json
+
+from django.http import JsonResponse
+
+class TestMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        print("Enter TestMiddleware")
+
+        ding = json.loads(request.body).get("ding")
+        if not ding or ding != "dong":
+            return JsonResponse({"message": "sorry, we are sleeping now"})
+            
+        response = self.get_response(request)
+        print("Exit TestMiddleware")
+        return response
+```
+
+Modify app/middleware.py to add errors processing
+
+```python
+class TestMiddleware2:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        print("Enter TestMiddleware2")
+        response = self.get_response(request)
+        print("Exit TestMiddleware2")
+        return response
+
+    def process_exception(self, request, exception):
+        return JsonResponse({"status": "error", "message": repr(exception)}, status=500)
+```
+
+Add logging info to app/settings.py
+
+```python
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+    },
+    "handlers": {
+        "file": {
+            "level": "DEBUG",
+            "class": "logging.FileHandler",
+            "filename": "./info.log",
+            'formatter': 'verbose',
+        },
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    "loggers": {
+        "blog": {
+            "handlers": ["file"],
+            "level": "INFO",
+            "propagate": True,
+        },
+        'django.db.backends': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            "propagate": True,
+        },
+        'django': {
+            'handlers': ['file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}
+```
+Additional info:
+https://www.b-list.org/weblog/2020/mar/16/no-service/
+https://github.com/HackSoftware/Django-Styleguide

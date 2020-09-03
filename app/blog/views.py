@@ -1,7 +1,6 @@
 import json
-import re
-from unidecode import unidecode
-from sklearn.feature_extraction.text import CountVectorizer
+import logging
+
 
 from django.shortcuts import render
 from django.views.generic import ListView, DetailView, CreateView, UpdateView
@@ -11,7 +10,10 @@ from django.http import JsonResponse
 
 from .models import Post, Comment
 from .forms import CommentForm
+from . import services
 
+
+logger = logging.getLogger(__name__)
 
 
 class HomeView(ListView):
@@ -36,7 +38,6 @@ class CreateCommentView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-
 class UpdateCommentView(LoginRequiredMixin, UpdateView):
     model = Comment
     template_name = "update-comment.html"
@@ -46,28 +47,24 @@ class UpdateCommentView(LoginRequiredMixin, UpdateView):
 
 @csrf_exempt
 def analyze_post(request):
-    
     post_id = json.loads(request.body).get("postId")
     if not post_id:
         return JsonResponse({"success": False, "message": "provide postId"})
 
-    post = Post.objects.filter(pk=post_id).first()
+    post = services.update_post_trigrams(post_id)
+    logger.info(f"analysis requested for post {post}")
     if not post:
         return JsonResponse({"success": False, "message": "post not found"})
+    return JsonResponse({"success": True, "trigrams": post.trigrams})
 
-    text = post.body
-    cleaned_text = unidecode(re.sub('[\W\d\s]', '', text.lower()))
-    
-    vectorizer = CountVectorizer(
-        ngram_range=(3,3),
-        lowercase=True,
-        analyzer = 'char',
-    )
 
-    data = vectorizer.fit_transform([cleaned_text])
-    trigrams = vectorizer.get_feature_names()[0:6]
+@csrf_exempt
+def analyze_comment(request):
+    comment_id = json.loads(request.body).get("commentId")
+    if not comment_id:
+        return JsonResponse({"success": False, "message": "provide commentId"})
 
-    post.trigrams = " ".join(trigrams)
-    post.save()
-
-    return JsonResponse({"success": True, "trigrams": trigrams})
+    comment = services.update_comment_trigrams(comment_id)
+    if not comment:
+        return JsonResponse({"success": False, "message": "comment not found"})
+    return JsonResponse({"success": True, "trigrams": comment.trigrams})
