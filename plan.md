@@ -1141,14 +1141,11 @@ class TestMiddleware:
         self.get_response = get_response
 
     def __call__(self, request):
-        print("Enter TestMiddleware")
-
         ding = json.loads(request.body).get("ding")
         if not ding or ding != "dong":
             return JsonResponse({"message": "sorry, we are sleeping now"})
             
         response = self.get_response(request)
-        print("Exit TestMiddleware")
         return response
 ```
 
@@ -1160,9 +1157,7 @@ class TestMiddleware2:
         self.get_response = get_response
 
     def __call__(self, request):
-        print("Enter TestMiddleware2")
         response = self.get_response(request)
-        print("Exit TestMiddleware2")
         return response
 
     def process_exception(self, request, exception):
