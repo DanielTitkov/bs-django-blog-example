@@ -10,6 +10,8 @@ class Post(models.Model):
     created = models.DateField(auto_now_add=True)
     updated = models.DateField(auto_now=True)
 
+    trigrams = models.TextField(blank=True)
+
     def __str__(self):
         return f"<Post '{self.title}' by {self.author}>"
 
